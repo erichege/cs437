@@ -17,10 +17,10 @@ def get_xy(angle, distance):
 	# catch edge case with rounding
 	if y >= 100:
 		y = 99
-	return y,x
-def draw_connection(map, x, y, last_x, last_y, step):
-	print(x)
-	print(last_x)
+	return x,y
+	
+def draw_connection(map, x, y, last_x, last_y):
+	
 	if (x == last_x):
 		slope = 0
 	else:
@@ -28,7 +28,8 @@ def draw_connection(map, x, y, last_x, last_y, step):
 	for i in range(x-last_x):
 		# use floor to assume closer, conservative approach
 		temp_y = math.floor(slope/(x-last_x))
-		map[last_x+i, temp_y] = 1
+		
+		map[last_y + temp_y, last_x+i,] = 1
 	return map
 		
 
@@ -37,24 +38,32 @@ def fill_map(map):
 	connected = False
 	last_x = 0
 	last_y = 0
-	for angle in range(-60,61,4):
+	for angle in range(-60,61,5):
 		dist = fc.get_distance_at(angle)
 		if dist == -2:
-			connect = False
+			connected = False
 			last_x = 0
 			last_y = 0
 			continue
 		
 		x,y = get_xy(angle,dist)
-		map[x,y] = 1
-		'''if connected:
-			map = draw_connection(map, x, y, last_x, last_y, 5)
+		
+		map[y,x] = 1
+		
+		# If the next reading is far away likely not same object so don't combine
+		if abs(last_y - y) > 15:
+			connected = False
+			last_x = 0
+			last_y = 0
+		# if two hits add in the inbetween info	
+		if connected:
+			map = draw_connection(map, x, y, last_x, last_y)
 			last_x = x
 			last_y = y
 		else:
 			last_x = x
 			last_y = y
-			connected = True'''
+			connected = True
 			
 			
 		
