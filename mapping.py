@@ -7,7 +7,6 @@ import math
 import nodeClass as nc
 from warnings import warn
 import heapq
-
 def get_xy(angle, distance):
 	
 	x = int(distance * np.sin(np.radians(angle)))
@@ -39,7 +38,13 @@ def draw_connection(map, x, y, last_x, last_y):
 		new_x = last_x + i
 		if new_x >= 100:
 			new_x = 99
-		
+		indicator = False
+		#Catches weird miss readings 
+		for i in range(y):
+                    if map[i,x] == 1:
+                        indicator = True
+		if indicator:
+                    continue		
 		map[new_y, new_x] = 1
 		
 	return map
@@ -57,9 +62,14 @@ def fill_map(map):
 			last_x = 0
 			last_y = 0
 			continue
-		
+		indicator = False
 		x,y = get_xy(angle,dist)
-		
+		#Catches weird miss readings 
+		for i in range(y):
+                    if map[i,x] == 1:
+                        indicator = True
+		if indicator:
+                    continue
 		map[y,x] = 1
 		
 		# If the next reading is far away likely not same object so don't combine
@@ -94,7 +104,7 @@ def add_padding(map):
 				xc = j
 				yc = i
 
-				for z in range(0,2):
+				for z in range(0,6):
 					for k in range(0,6):
 						x_temp_1 = xc + k
 						x_temp_2 = xc - k
@@ -295,12 +305,14 @@ def translate_path(path):
         else:
             to_return_direction.append('RightDiag')
             to_return_length.append(1)
-    for i in range(1,len(path) -2):
+    for i in range(1,len(path) -3):
         curr_dir = (path[i][0]-path[i-1][0], path[i][1]-path[i-1][1])
         # second direction
         one_dir = (path[i+1][0]-path[i][0], path[i+1][1]-path[i][1])
         # Third direction
         two_dir = (path[i+2][0]-path[i+1][0], path[i+2][1]-path[i+1][1])
+        # fourth direction
+        three_dir = (path[i+3][0]-path[i+2][0], path[i+3][1]-path[i+2][1])	
         print(curr_dir,one_dir,two_dir)
         #Forward
         if (curr_dir == one_dir == two_dir):
@@ -318,8 +330,8 @@ def translate_path(path):
                 to_return_direction.append('Forward')
                 to_return_length.append(1)
             
-        elif (curr_dir != one_dir == two_dir):
-            if (one_dir == (1,0)):    
+        elif (curr_dir != one_dir == two_dir == three_dir and to_return_direction[-1] != 'LeftDiag' and to_return_direction[-1] != 'RightDiag'):
+            if (one_dir == (1,0) or (curr_dir == (-1,0))):    
                 to_return_direction.append('Left')
                 to_return_length.append(1)
             else:
@@ -345,67 +357,186 @@ def drive_path(directions, steps):
         if directions[i] == 'Forward':
             print('forward')
             fc.forward(1)
-            time.sleep(.025 *steps[i])
+            time.sleep(.042*steps[i])
             fc.stop()
-            #Backwards
+            
 	#Left
         elif directions[i] == 'Left':
             print('left')
-            fc.turn_left(1.3)
-            time.sleep(.75)
+            if(steps[i+1] <=2):
+                fc.turn_left(1)
+                time.sleep(.01)
+                fc.stop()                
+                continue
+            if(directions[i-1] == "RightDiag"):
+                fc.turn_left(1.25)
+                time.sleep(1)
+                fc.stop()
+                fc.forward(1)
+                time.sleep(.3)              
+                continue
+				
+            fc.turn_left(1.2)
+            time.sleep(1.1)
             fc.stop()
             fc.forward(1)
-            time.sleep(.2)
+            time.sleep(.3)
             fc.stop()
             
 	    #Right
         elif directions[i] == 'Right':
             print('right')
+            if(steps[i+1] <=2):
+                fc.turn_right(1)
+                time.sleep(.01)
+                fc.stop()                
+                continue
+            if(directions[i-1] == "LeftDiag"):
+                fc.turn_right(1.25)
+                time.sleep(1)
+                fc.stop()
+                fc.forward(1)
+                time.sleep(.3)              
+                continue	    
             fc.turn_right(1.3)
-            time.sleep(.75)
+            time.sleep(1.1)
             fc.stop()
             fc.forward(1)
-            time.sleep(.2)
+            time.sleep(.3)
             fc.stop()
 	    
         elif directions[i] == 'RightDiag':
 	    #helps weird almost wiggles
-            if steps[i] <=2:
+            if steps[i] <=5:
                 print('rightdiag')
-                fc.turn_right(.5)
-                time.sleep(.25)
-                fc.stop()
-                fc.forward(1)
-                time.sleep(.10* steps[i])
-                fc.stop()
-            else:
-                fc.turn_right(.5)
-                time.sleep(.25)
+                fc.turn_right(1)
+                time.sleep(.05)
                 fc.stop()
                 fc.forward(1)
                 time.sleep(.05* steps[i])
+                fc.stop()
+            else:
+                fc.turn_right(1)
+                time.sleep(.55)
+                fc.stop()
+                fc.forward(1)
+                time.sleep(.06* steps[i])
                 fc.stop()
         elif directions[i] == 'LeftDiag':
             print('leftdiag')
 	    #helps weird almost wiggles
-            if steps[i] <=2:
-                fc.turn_left(.5)
-                time.sleep(.25)
-                fc.stop()
-                fc.forward(1)
-                time.sleep(.10* steps[i])
-                fc.stop()
-            else:
-                fc.turn_left(.5)
-                time.sleep(.25)
+            if steps[i] <=5:
+                fc.turn_left(1)
+                time.sleep(.05)
                 fc.stop()
                 fc.forward(1)
                 time.sleep(.05* steps[i])
                 fc.stop()
+            else:
+                fc.turn_left(1)
+                time.sleep(.55)
+                fc.stop()
+                fc.forward(1)
+                time.sleep(.06* steps[i])
+                fc.stop()
+    #Face car forward
+    if directions[-1] == 'LeftDiag':
+        fc.turn_right(1)
+        time.sleep(.5)
+        fc.stop()
+    else: 
+        fc.turn_left(1)
+        time.sleep(.5)
+        fc.stop()
+def check_threat(list_threats):
 
-if __name__ == '__main__':
+    # [2:7] represents the degree range of -30 to 30 
+    for distance in list_threats[2:7]:
+        # No obstacle detected
+        if distance == -2:
+            continue
+        elif distance < 40:
+            fc.stop()
+            return True
+
+    # Checks peripherals, makes less sensitive than direct    
+    if list_threats[1] != -2:
+        if list_threats[1] < 30:
+            fc.stop()
+            return True
+    if list_threats[7] != -2:
+        if list_threats[7] < 30:
+            fc.stop()
+            return True
+    return False
+def drive():
+    
+    times = 0
+    
+    # 20 is an arbitrary amount that just allows the program to terminate after ~20-30 seconds
+    for k in range(10):
+
+        fc.forward(1)
+        
+        # list to store distance to objects at each angle
+        threats = []
+        
+        # Gets distance of all potential objects scanning from servo -60 to 60 degrees
+        for i in range(-60,61,15):
+            threats.append(fc.get_distance_at(i))
+
+        if(check_threat(threats)):
+            map = np.zeros((100,100), dtype=int)
 	
+            map = fill_map(map)
+            map = add_padding(map)
+	
+            path = astar(map, (49,0),(49,60))	    
 
+            x,y=translate_path(path)
+            drive_path(x,y)
+        # list to store distance to objects at each angle 
+        threats = []
+
+        # Gets distance of all potential objects scanning from servo 60 to -60 degrees
+
+        for j in range(60,-61,-15):
+            threats.append(fc.get_distance_at(j))
+
+        if(check_threat(threats)):
+            map = np.zeros((100,100), dtype=int)
+	
+            map = fill_map(map)
+            map = add_padding(map)
+	
+            path = astar(map, (49,0),(49,50))	    
+            for tup in path:
+                map[tup[1],tup[0]] = -1
+
+
+	
+            x,y=translate_path(path)
+            drive_path(x,y)
+            plt.imshow(map)
+	    
+
+    fc.stop()
+if __name__ == '__main__':
+	drive()
+	
+	'''map = np.zeros((100,100), dtype=int)
+	
+	map = fill_map(map)
+	map = add_padding(map)
+	
+	path = astar(map, (49,0),(49,60))
+	
+	for tup in path:
+	    map[tup[1],tup[0]] = -1
+
+
+	x,y=translate_path(path)
+	drive_path(x,y)
 	map = np.zeros((100,100), dtype=int)
 	
 	map = fill_map(map)
@@ -419,8 +550,8 @@ if __name__ == '__main__':
 
 	x,y=translate_path(path)
 	drive_path(x,y)
-	print(x)
-	print(y)
-	plt.imshow(map)
-	plt.show()
+	#print(x)
+	#print(y)
+	#plt.imshow(map)
+	#plt.show()'''
 	
