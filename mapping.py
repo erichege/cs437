@@ -7,6 +7,8 @@ import math
 import nodeClass as nc
 from warnings import warn
 import heapq
+
+# Trig to turn angle/distance of reading into and x,y cord assuming (49,0) start
 def get_xy(angle, distance):
 	
 	x = int(distance * np.sin(np.radians(angle)))
@@ -21,7 +23,8 @@ def get_xy(angle, distance):
 	if y >= 100:
 		y = 99
 	return x,y
-	
+
+# Connects two points that were detected next to eachother	
 def draw_connection(map, x, y, last_x, last_y):
 	
 	if (x == last_x):
@@ -49,7 +52,7 @@ def draw_connection(map, x, y, last_x, last_y):
 		
 	return map
 		
-
+# Conducts readings and populates map with obsticals 
 def fill_map(map):
 	# Used to signal 2 positives in a row
 	connected = False
@@ -57,7 +60,7 @@ def fill_map(map):
 	last_y = 0
 	for angle in range(-60,61,5):
 		dist = fc.get_distance_at(angle)
-		if dist == -2:
+		if dist == -2 or dist > 80:
 			connected = False
 			last_x = 0
 			last_y = 0
@@ -88,15 +91,9 @@ def fill_map(map):
 			connected = True
 	return map
 			
-def return_path(current_node):
-    path = []
-    current = current_node
-    while current is not None:
-        path.append(current.position)
-        current = current.parent
-    return path[::-1]  # Return reversed path
+
     
-# draw a 5-4-4-3-1 circle around a point
+# draw a 5-4-4-3-1 circle around a point, used to add padding
 def add_padding(map):
 	for i in range(map.shape[1]):
 		for j in range(map.shape[0]):
@@ -180,8 +177,16 @@ def add_padding(map):
 					
 				
 	return map
-                             
-
+# grabs the instructions for ideal path                             
+def return_path(current_node):
+    path = []
+    current = current_node
+    while current is not None:
+        path.append(current.position)
+        current = current.parent
+    return path[::-1]  # Return reversed 
+    
+# A star implementation    
 def astar(maze, start, end):
     """
     Returns a list of tuples as a path from the given start to the given end in the given maze
@@ -273,7 +278,9 @@ def astar(maze, start, end):
             heapq.heappush(open_list, child)
 
     warn("Couldn't get a path to destination")
-    return None			
+    return None
+
+# Converts path into smoothed instructions to help driveability 
 def translate_path(path):
     to_return_direction = []
     to_return_length = []
@@ -350,6 +357,8 @@ def translate_path(path):
             else:
                     to_return_length[-1] += 1
     return to_return_direction,to_return_length
+    
+# Takes the smoothed path and drives car along it
 def drive_path(directions, steps):
 
     for i in range(len(directions)):
@@ -440,14 +449,19 @@ def drive_path(directions, steps):
                 time.sleep(.06* steps[i])
                 fc.stop()
     #Face car forward
-    if directions[-1] == 'LeftDiag':
+    if directions[-1] == 'Forward':
+        fc.stop()
+    elif directions[-1] == 'LeftDiag':
         fc.turn_right(1)
         time.sleep(.5)
         fc.stop()
     else: 
         fc.turn_left(1)
-        time.sleep(.5)
-        fc.stop()
+        time.sleep(.4)
+        fc.stop
+
+# From naive route, takes a list of distances to see if there is anything urgent in 
+# 	If there is something within 30cm Astar algo is called to determine best reroute
 def check_threat(list_threats):
 
     # [2:7] represents the degree range of -30 to 30 
@@ -469,12 +483,13 @@ def check_threat(list_threats):
             fc.stop()
             return True
     return False
-def drive():
     
-    times = 0
+# Wrapper function that drives car, takes CM for each direction 
+def drive(Forward = 0, Left = 0, Right = 0):
     
-    # 20 is an arbitrary amount that just allows the program to terminate after ~20-30 seconds
-    for k in range(10):
+    
+    # Complete the forward progression of car 
+    while Forward > 0:
 
         fc.forward(1)
         
@@ -490,11 +505,13 @@ def drive():
 	
             map = fill_map(map)
             map = add_padding(map)
-	
             path = astar(map, (49,0),(49,60))	    
-
             x,y=translate_path(path)
             drive_path(x,y)
+            Forward -= 60
+        else:
+            Forward -= 15
+    
         # list to store distance to objects at each angle 
         threats = []
 
@@ -509,21 +526,118 @@ def drive():
             map = fill_map(map)
             map = add_padding(map)
 	
-            path = astar(map, (49,0),(49,50))	    
-            for tup in path:
-                map[tup[1],tup[0]] = -1
+            path = astar(map, (49,0),(49,60))	    
 
-
-	
             x,y=translate_path(path)
             drive_path(x,y)
-            plt.imshow(map)
+            Forward -= 60
+        else:
+            Forward -= 15
 	    
+    # Complete left portion of journy
+    if Left > 0:
+        fc.turn_left(1)
+        time.sleep(.7)
+        fc.stop()
+    while Left > 0:
 
+        fc.forward(1)
+        
+        # list to store distance to objects at each angle
+        threats = []
+        
+        # Gets distance of all potential objects scanning from servo -60 to 60 degrees
+        for i in range(-60,61,15):
+            threats.append(fc.get_distance_at(i))
+
+        if(check_threat(threats)):
+            map = np.zeros((100,100), dtype=int)
+	
+            map = fill_map(map)
+            map = add_padding(map)
+            path = astar(map, (49,0),(49,60))	    
+            x,y=translate_path(path)
+            drive_path(x,y)
+            Left -= 60
+        else:
+            Left -= 15
+    
+        # list to store distance to objects at each angle 
+        threats = []
+
+        # Gets distance of all potential objects scanning from servo 60 to -60 degrees
+
+        for j in range(60,-61,-15):
+            threats.append(fc.get_distance_at(j))
+
+        if(check_threat(threats)):
+            map = np.zeros((100,100), dtype=int)
+	
+            map = fill_map(map)
+            map = add_padding(map)
+	
+            path = astar(map, (49,0),(49,60))	    
+
+            x,y=translate_path(path)
+            drive_path(x,y)
+            Left -= 60
+        else:
+            Left -= 15
+    # Complete left portion of journy
+    if Right > 0:
+        fc.turn_right(1)
+        time.sleep(1.1)
+        fc.stop()
+    while Right > 0:
+
+        fc.forward(1)
+        
+        # list to store distance to objects at each angle
+        threats = []
+        
+        # Gets distance of all potential objects scanning from servo -60 to 60 degrees
+        for i in range(-60,61,15):
+            threats.append(fc.get_distance_at(i))
+
+        if(check_threat(threats)):
+            map = np.zeros((100,100), dtype=int)
+	
+            map = fill_map(map)
+            map = add_padding(map)
+            path = astar(map, (49,0),(49,60))	    
+            x,y=translate_path(path)
+            drive_path(x,y)
+            Right -= 60
+        else:
+            Right -= 15
+    
+        # list to store distance to objects at each angle 
+        threats = []
+
+        # Gets distance of all potential objects scanning from servo 60 to -60 degrees
+
+        for j in range(60,-61,-15):
+            threats.append(fc.get_distance_at(j))
+
+        if(check_threat(threats)):
+            map = np.zeros((100,100), dtype=int)
+	
+            map = fill_map(map)
+            map = add_padding(map)
+	
+            path = astar(map, (49,0),(49,60))	    
+
+            x,y=translate_path(path)
+            drive_path(x,y)
+            Right -= 60
+        else:
+            Right -= 15
     fc.stop()
 if __name__ == '__main__':
-	drive()
-	
+	#Route 1
+	#drive(Forward = 130, Left = 200)
+	#Route 2
+	drive(Forward = 280, Right = 200)
 	'''map = np.zeros((100,100), dtype=int)
 	
 	map = fill_map(map)
