@@ -1,4 +1,5 @@
 import picar_4wd as fc
+import time
 import numpy as np
 np.set_printoptions(threshold = np.inf)
 import matplotlib.pyplot as plt
@@ -263,8 +264,144 @@ def astar(maze, start, end):
 
     warn("Couldn't get a path to destination")
     return None			
-		
+def translate_path(path):
+    to_return_direction = []
+    to_return_length = []
+    #assume forward start
+    curr_dir = (0,1)
+    # second direction
+    one_dir = (path[1][0]-path[0][0], path[1][1]-path[0][1])
+    # Third direction
+    two_dir = (path[2][0]-path[1][0], path[2][1]-path[1][1])
+    #Forward
+    if (curr_dir == one_dir == two_dir):
+        to_return_direction.append('Forward')
+        to_return_length.append(1)
+    elif (curr_dir == one_dir != two_dir):
+        to_return_direction.append('Forward')
+        to_return_length.append(1)
+    elif (curr_dir != one_dir == two_dir):
+        if (one_dir == (1,0)):    
+            to_return_direction.append('Left')
+            to_return_length.append(1)
+        else:
+            to_return_direction.append('Right')
+            to_return_length.append(1)
+    #diag
+    else:
+        if (one_dir == (1,0)):    
+            to_return_direction.append('LeftDiag')
+            to_return_length.append(1)
+        else:
+            to_return_direction.append('RightDiag')
+            to_return_length.append(1)
+    for i in range(1,len(path) -2):
+        curr_dir = (path[i][0]-path[i-1][0], path[i][1]-path[i-1][1])
+        # second direction
+        one_dir = (path[i+1][0]-path[i][0], path[i+1][1]-path[i][1])
+        # Third direction
+        two_dir = (path[i+2][0]-path[i+1][0], path[i+2][1]-path[i+1][1])
+        print(curr_dir,one_dir,two_dir)
+        #Forward
+        if (curr_dir == one_dir == two_dir):
+	    # already forward
+            if (to_return_direction[-1] == 'Forward'):
+                to_return_length[-1] += 1
+            else: 
+                to_return_direction.append('Forward')
+                to_return_length.append(1)
+        elif (curr_dir == one_dir != two_dir):
+	    # already forward
+            if (to_return_direction[-1] == 'Forward'):
+                to_return_length[-1] += 1
+            else: 
+                to_return_direction.append('Forward')
+                to_return_length.append(1)
+            
+        elif (curr_dir != one_dir == two_dir):
+            if (one_dir == (1,0)):    
+                to_return_direction.append('Left')
+                to_return_length.append(1)
+            else:
+                to_return_direction.append('Right')
+                to_return_length.append(1)
+    #diag
+        else:
+	    # Not currently in diag
+            if (to_return_direction[-1] != 'LeftDiag' and to_return_direction[-1] != 'RightDiag'):
+                if (one_dir == (1,0)):    
+                    to_return_direction.append('LeftDiag')
+                    to_return_length.append(1)
+                else:
+                    to_return_direction.append('RightDiag')
+                    to_return_length.append(1)
+            else:
+                    to_return_length[-1] += 1
+    return to_return_direction,to_return_length
+def drive_path(directions, steps):
 
+    for i in range(len(directions)):
+
+        if directions[i] == 'Forward':
+            print('forward')
+            fc.forward(1)
+            time.sleep(.025 *steps[i])
+            fc.stop()
+            #Backwards
+	#Left
+        elif directions[i] == 'Left':
+            print('left')
+            fc.turn_left(1.3)
+            time.sleep(.75)
+            fc.stop()
+            fc.forward(1)
+            time.sleep(.2)
+            fc.stop()
+            
+	    #Right
+        elif directions[i] == 'Right':
+            print('right')
+            fc.turn_right(1.3)
+            time.sleep(.75)
+            fc.stop()
+            fc.forward(1)
+            time.sleep(.2)
+            fc.stop()
+	    
+        elif directions[i] == 'RightDiag':
+	    #helps weird almost wiggles
+            if steps[i] <=2:
+                print('rightdiag')
+                fc.turn_right(.5)
+                time.sleep(.25)
+                fc.stop()
+                fc.forward(1)
+                time.sleep(.10* steps[i])
+                fc.stop()
+            else:
+                fc.turn_right(.5)
+                time.sleep(.25)
+                fc.stop()
+                fc.forward(1)
+                time.sleep(.05* steps[i])
+                fc.stop()
+        elif directions[i] == 'LeftDiag':
+            print('leftdiag')
+	    #helps weird almost wiggles
+            if steps[i] <=2:
+                fc.turn_left(.5)
+                time.sleep(.25)
+                fc.stop()
+                fc.forward(1)
+                time.sleep(.10* steps[i])
+                fc.stop()
+            else:
+                fc.turn_left(.5)
+                time.sleep(.25)
+                fc.stop()
+                fc.forward(1)
+                time.sleep(.05* steps[i])
+                fc.stop()
 
 if __name__ == '__main__':
 	
@@ -277,9 +414,13 @@ if __name__ == '__main__':
 	path = astar(map, (49,0),(49,60))
 	
 	for tup in path:
-		map[tup[1],tup[0]] = -1
+	    map[tup[1],tup[0]] = -1
 
 
+	x,y=translate_path(path)
+	drive_path(x,y)
+	print(x)
+	print(y)
 	plt.imshow(map)
 	plt.show()
-
+	
