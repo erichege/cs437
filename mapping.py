@@ -1,3 +1,6 @@
+import sys
+sys.path.insert(0, '/home/pi/picar-4wd')
+
 import picar_4wd as fc
 import time
 import numpy as np
@@ -7,6 +10,13 @@ import math
 import nodeClass as nc
 from warnings import warn
 import heapq
+import argparse
+
+import cv2
+from tflite_support.task import core
+from tflite_support.task import processor
+from tflite_support.task import vision
+import utils
 
 # Trig to turn angle/distance of reading into and x,y cord assuming (49,0) start
 def get_xy(angle, distance):
@@ -320,7 +330,6 @@ def translate_path(path):
         two_dir = (path[i+2][0]-path[i+1][0], path[i+2][1]-path[i+1][1])
         # fourth direction
         three_dir = (path[i+3][0]-path[i+2][0], path[i+3][1]-path[i+2][1])	
-        print(curr_dir,one_dir,two_dir)
         #Forward
         if (curr_dir == one_dir == two_dir):
 	    # already forward
@@ -358,11 +367,37 @@ def translate_path(path):
                     to_return_length[-1] += 1
     return to_return_direction,to_return_length
     
+
+
+# From naive route, takes a list of distances to see if there is anything urgent in 
+# 	If there is something within 30cm Astar algo is called to determine best reroute
+def check_threat(list_threats):
+
+    # [2:7] represents the degree range of -30 to 30 
+    for distance in list_threats[2:7]:
+        # No obstacle detected
+        if distance == -2:
+            continue
+        elif distance < 40:
+            fc.stop()
+            return True
+
+    # Checks peripherals, makes less sensitive than direct    
+    if list_threats[1] != -2:
+        if list_threats[1] < 30:
+            fc.stop()
+            return True
+    if list_threats[7] != -2:
+        if list_threats[7] < 30:
+            fc.stop()
+            return True
+    return False
+    
 # Takes the smoothed path and drives car along it
-def drive_path(directions, steps):
+def drive_path(directions, steps,detect,capture):
 
     for i in range(len(directions)):
-
+        check_image(detect,capture)
         if directions[i] == 'Forward':
             print('forward')
             fc.forward(1)
@@ -459,47 +494,62 @@ def drive_path(directions, steps):
         fc.turn_left(1)
         time.sleep(.4)
         fc.stop
+	
+	
+def check_image(detector_obj, cap):
+  # Continuously capture images from the camera and run inference
+    if cap.isOpened():
+        success, image = cap.read()
+    else: 
+        sys.exit(
+          'ERROR: Unable to read from webcam. Please verify your webcam settings.'
+      )
+        return ''
 
-# From naive route, takes a list of distances to see if there is anything urgent in 
-# 	If there is something within 30cm Astar algo is called to determine best reroute
-def check_threat(list_threats):
+    image = cv2.flip(image, 1)
 
-    # [2:7] represents the degree range of -30 to 30 
-    for distance in list_threats[2:7]:
-        # No obstacle detected
-        if distance == -2:
-            continue
-        elif distance < 40:
-            fc.stop()
-            return True
+    # Convert the image from BGR to RGB as required by the TFLite model.
+    rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-    # Checks peripherals, makes less sensitive than direct    
-    if list_threats[1] != -2:
-        if list_threats[1] < 30:
+    # Create a TensorImage object from the RGB image.
+    input_tensor = vision.TensorImage.create_from_array(rgb_image)
+
+    # Run object detection estimation using the model.
+    detection_result = detector_obj.detect(input_tensor)
+    for detection in detection_result.detections:
+        item = detection.categories[0].category_name
+	# if person, keep checking image until no person present
+        if item == 'person':
             fc.stop()
-            return True
-    if list_threats[7] != -2:
-        if list_threats[7] < 30:
+            print('person')
+            check_image(detector_obj,cap)
+            fc.forward(1)
+        elif item == 'stop sign':
             fc.stop()
-            return True
-    return False
+            print('stop sign')
+            time.sleep(1)
+            fc.forward(1)
+            return 'stop sign'
+    return 'person'
+	
+    
     
 # Wrapper function that drives car, takes CM for each direction 
-def drive(Forward = 0, Left = 0, Right = 0):
+def drive(detect, capture, Forward = 0, Left = 0, Right = 0):
     
     
     # Complete the forward progression of car 
     while Forward > 0:
-
+        check_image(detect,capture)
         fc.forward(1)
-        
+
         # list to store distance to objects at each angle
         threats = []
         
         # Gets distance of all potential objects scanning from servo -60 to 60 degrees
         for i in range(-60,61,15):
             threats.append(fc.get_distance_at(i))
-
+        check_image(detect,capture)
         if(check_threat(threats)):
             map = np.zeros((100,100), dtype=int)
 	
@@ -507,11 +557,11 @@ def drive(Forward = 0, Left = 0, Right = 0):
             map = add_padding(map)
             path = astar(map, (49,0),(49,60))	    
             x,y=translate_path(path)
-            drive_path(x,y)
+            drive_path(x,y,detect, capture)
             Forward -= 60
         else:
             Forward -= 15
-    
+        check_image(detect,capture)
         # list to store distance to objects at each angle 
         threats = []
 
@@ -519,7 +569,7 @@ def drive(Forward = 0, Left = 0, Right = 0):
 
         for j in range(60,-61,-15):
             threats.append(fc.get_distance_at(j))
-
+        check_image(detect,capture)
         if(check_threat(threats)):
             map = np.zeros((100,100), dtype=int)
 	
@@ -529,18 +579,18 @@ def drive(Forward = 0, Left = 0, Right = 0):
             path = astar(map, (49,0),(49,60))	    
 
             x,y=translate_path(path)
-            drive_path(x,y)
+            drive_path(x,y,detect, capture)
             Forward -= 60
         else:
             Forward -= 15
-	    
+        check_image(detect,capture)    
     # Complete left portion of journy
     if Left > 0:
         fc.turn_left(1)
         time.sleep(.7)
         fc.stop()
     while Left > 0:
-
+        check_image(detect,capture)
         fc.forward(1)
         
         # list to store distance to objects at each angle
@@ -549,7 +599,7 @@ def drive(Forward = 0, Left = 0, Right = 0):
         # Gets distance of all potential objects scanning from servo -60 to 60 degrees
         for i in range(-60,61,15):
             threats.append(fc.get_distance_at(i))
-
+        check_image(detect,capture)
         if(check_threat(threats)):
             map = np.zeros((100,100), dtype=int)
 	
@@ -557,11 +607,11 @@ def drive(Forward = 0, Left = 0, Right = 0):
             map = add_padding(map)
             path = astar(map, (49,0),(49,60))	    
             x,y=translate_path(path)
-            drive_path(x,y)
+            drive_path(x,y,detect, capture)
             Left -= 60
         else:
             Left -= 15
-    
+        check_image(detect,capture)    
         # list to store distance to objects at each angle 
         threats = []
 
@@ -569,7 +619,7 @@ def drive(Forward = 0, Left = 0, Right = 0):
 
         for j in range(60,-61,-15):
             threats.append(fc.get_distance_at(j))
-
+        check_image(detect,capture)
         if(check_threat(threats)):
             map = np.zeros((100,100), dtype=int)
 	
@@ -579,7 +629,7 @@ def drive(Forward = 0, Left = 0, Right = 0):
             path = astar(map, (49,0),(49,60))	    
 
             x,y=translate_path(path)
-            drive_path(x,y)
+            drive_path(x,y,detect, capture)
             Left -= 60
         else:
             Left -= 15
@@ -589,7 +639,7 @@ def drive(Forward = 0, Left = 0, Right = 0):
         time.sleep(1.1)
         fc.stop()
     while Right > 0:
-
+        check_image(detect,capture)
         fc.forward(1)
         
         # list to store distance to objects at each angle
@@ -598,7 +648,7 @@ def drive(Forward = 0, Left = 0, Right = 0):
         # Gets distance of all potential objects scanning from servo -60 to 60 degrees
         for i in range(-60,61,15):
             threats.append(fc.get_distance_at(i))
-
+        check_image(detect,capture)
         if(check_threat(threats)):
             map = np.zeros((100,100), dtype=int)
 	
@@ -606,11 +656,11 @@ def drive(Forward = 0, Left = 0, Right = 0):
             map = add_padding(map)
             path = astar(map, (49,0),(49,60))	    
             x,y=translate_path(path)
-            drive_path(x,y)
+            drive_path(x,y,detect, capture)
             Right -= 60
         else:
             Right -= 15
-    
+        check_image(detect,capture)
         # list to store distance to objects at each angle 
         threats = []
 
@@ -618,7 +668,7 @@ def drive(Forward = 0, Left = 0, Right = 0):
 
         for j in range(60,-61,-15):
             threats.append(fc.get_distance_at(j))
-
+        check_image(detect,capture)
         if(check_threat(threats)):
             map = np.zeros((100,100), dtype=int)
 	
@@ -628,17 +678,86 @@ def drive(Forward = 0, Left = 0, Right = 0):
             path = astar(map, (49,0),(49,60))	    
 
             x,y=translate_path(path)
-            drive_path(x,y)
+            drive_path(x,y,detect, capture)
             Right -= 60
         else:
             Right -= 15
     fc.stop()
+
+
+
+  
+def run(model: str, camera_id: int, width: int, height: int, num_threads: int,
+        enable_edgetpu: bool) -> None:
+	    
+  # Start capturing video input from the camera
+    cap = cv2.VideoCapture(camera_id)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+
+
+  # Initialize the object detection model
+    base_options = core.BaseOptions(
+      file_name=model, use_coral=enable_edgetpu, num_threads=num_threads)
+    detection_options = processor.DetectionOptions(
+      max_results=3, score_threshold=0.3, category_name_allowlist =['person', 'stop sign'])
+    options = vision.ObjectDetectorOptions(
+      base_options=base_options, detection_options=detection_options)
+    detector = vision.ObjectDetector.create_from_options(options)
+  
+    return detector, cap
+    
+def main():
+    parser = argparse.ArgumentParser(
+      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+      '--model',
+      help='Path of the object detection model.',
+      required=False,
+      default='efficientdet_lite0.tflite')
+    parser.add_argument(
+      '--cameraId', help='Id of camera.', required=False, type=int, default=0)
+    parser.add_argument(
+      '--frameWidth',
+      help='Width of frame to capture from camera.',
+      required=False,
+      type=int,
+      default=640)
+    parser.add_argument(
+      '--frameHeight',
+      help='Height of frame to capture from camera.',
+      required=False,
+      type=int,
+      default=480)
+    parser.add_argument(
+      '--numThreads',
+      help='Number of CPU threads to run the model.',
+      required=False,
+      type=int,
+      default=4)
+    parser.add_argument(
+      '--enableEdgeTPU',
+      help='Whether to run the model on EdgeTPU.',
+      action='store_true',
+      required=False,
+      default=False)
+    args = parser.parse_args()
+    
+    det, cp = run(args.model, int(args.cameraId), args.frameWidth, args.frameHeight,
+      int(args.numThreads), bool(args.enableEdgeTPU))
+    drive(det,cp, Forward = 100) 
+    cp.release()   
+      
+      
 if __name__ == '__main__':
-	#Route 1
+    main()
+    fc.stop()
+    #Route 1
 	#drive(Forward = 130, Left = 200)
 	#Route 2
-	drive(Forward = 280, Right = 200)
-	'''map = np.zeros((100,100), dtype=int)
+	#drive(Forward = 280, Right = 200
+
+    '''map = np.zeros((100,100), dtype=int)
 	
 	map = fill_map(map)
 	map = add_padding(map)
@@ -649,7 +768,7 @@ if __name__ == '__main__':
 	    map[tup[1],tup[0]] = -1
 
 
-	x,y=translate_path(path)
+    x,y=translate_path(path)
 	drive_path(x,y)
 	map = np.zeros((100,100), dtype=int)
 	
@@ -659,13 +778,13 @@ if __name__ == '__main__':
 	path = astar(map, (49,0),(49,60))
 	
 	for tup in path:
-	    map[tup[1],tup[0]] = -1
+	    map[tup[1],tup[0]] = -1'''
 
 
-	x,y=translate_path(path)
-	drive_path(x,y)
+	#x,y=translate_path(path)
+	#drive_path(x,y)
 	#print(x)
 	#print(y)
 	#plt.imshow(map)
-	#plt.show()'''
+	#plt.show()
 	
