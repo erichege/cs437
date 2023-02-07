@@ -130,61 +130,7 @@ def add_padding(map):
 						if x_temp_2 > -1 and y_temp_2 > -1:
 							if map[y_temp_2,x_temp_2] != 1:
 								map[y_temp_2, x_temp_2] = 2
-				for z in range(2,4):
-					for k in range(0,5):
-						x_temp_1 = xc + k
-						x_temp_2 = xc - k
-						y_temp_1 = yc + z
-						y_temp_2 = yc - z
-						if (x_temp_1 < 99) and (y_temp_1 < 99):
-							if map[y_temp_1,x_temp_1] != 1:
-								map[y_temp_1, x_temp_1] = 2
-						if x_temp_2 > -1 and y_temp_1 < 99:
-							if map[y_temp_1,x_temp_2] != 1:
-								map[y_temp_1, x_temp_2] = 2
-						if x_temp_1 < 99 and y_temp_2 > -1:
-							if map[y_temp_2,x_temp_1] != 1:
-								map[y_temp_2, x_temp_1] = 2
-						if x_temp_2 > -1 and y_temp_2 > -1:
-							if map[y_temp_2,x_temp_2] != 1:
-								map[y_temp_2, x_temp_2] = 2
-				for z in range(4,5):
-					for k in range(0,4):
-						x_temp_1 = xc + k
-						x_temp_2 = xc - k
-						y_temp_1 = yc + z
-						y_temp_2 = yc - z
-						if (x_temp_1 < 99) and (y_temp_1 < 99):
-							if map[y_temp_1,x_temp_1] != 1:
-								map[y_temp_1, x_temp_1] = 2
-						if x_temp_2 > -1 and y_temp_1 < 99:
-							if map[y_temp_1,x_temp_2] != 1:
-								map[y_temp_1, x_temp_2] = 2
-						if x_temp_1 < 99 and y_temp_2 > -1:
-							if map[y_temp_2,x_temp_1] != 1:
-								map[y_temp_2, x_temp_1] = 2
-						if x_temp_2 > -1 and y_temp_2 > -1:
-							if map[y_temp_2,x_temp_2] != 1:
-								map[y_temp_2, x_temp_2] = 2
-				for z in range(5,6):
-					for k in range(0,2):
-						x_temp_1 = xc + k
-						x_temp_2 = xc - k
-						y_temp_1 = yc + z
-						y_temp_2 = yc - z
-						if (x_temp_1 < 99) and (y_temp_1 < 99):
-							if map[y_temp_1,x_temp_1] != 1:
-								map[y_temp_1, x_temp_1] = 2
-						if x_temp_2 > -1 and y_temp_1 < 99:
-							if map[y_temp_1,x_temp_2] != 1:
-								map[y_temp_1, x_temp_2] = 2
-						if x_temp_1 < 99 and y_temp_2 > -1:
-							if map[y_temp_2,x_temp_1] != 1:
-								map[y_temp_2, x_temp_1] = 2
-						if x_temp_2 > -1 and y_temp_2 > -1:
-							if map[y_temp_2,x_temp_2] != 1:
-								map[y_temp_2, x_temp_2] = 2
-					
+				
 				
 	return map
 # grabs the instructions for ideal path                             
