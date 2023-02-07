@@ -699,38 +699,9 @@ if __name__ == '__main__':
     main()
     fc.stop()
     #Route 1
-	#drive(Forward = 130, Left = 200)
-	#Route 2
-	#drive(Forward = 280, Right = 200
+    main(Forward = 130, Left = 200)
+    #Route 2
+    main(Forward = 200, Right = 230)
 
-    '''map = np.zeros((100,100), dtype=int)
-	
-	map = fill_map(map)
-	map = add_padding(map)
-	
-	path = astar(map, (49,0),(49,60))
-	
-	for tup in path:
-	    map[tup[1],tup[0]] = -1
-
-
-    x,y=translate_path(path)
-	drive_path(x,y)
-	map = np.zeros((100,100), dtype=int)
-	
-	map = fill_map(map)
-	map = add_padding(map)
-	
-	path = astar(map, (49,0),(49,60))
-	
-	for tup in path:
-	    map[tup[1],tup[0]] = -1'''
-
-
-	#x,y=translate_path(path)
-	#drive_path(x,y)
-	#print(x)
-	#print(y)
-	#plt.imshow(map)
-	#plt.show()
+ 
 	
